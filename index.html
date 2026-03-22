@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Job Tracker</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --surface2: #22263a;
+    --border: #2e3250; --accent: #6c63ff; --accent2: #48cfad;
+    --danger: #ff6b6b; --warn: #ffd93d; --text: #e8eaf6;
+    --muted: #8b90b8; --green: #48cfad; --blue: #4fc3f7;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; }
+  
+  /* Layout */
+  .app { display: flex; flex-direction: column; min-height: 100vh; }
+  header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+  header h1 span { color: var(--text); }
+  .main { padding: 24px; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
+  .stat-card .num { font-size: 2rem; font-weight: 800; }
+  .stat-card .lbl { font-size: 0.75rem; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat-card.applied .num { color: var(--blue); }
+  .stat-card.interview .num { color: var(--warn); }
+  .stat-card.offer .num { color: var(--green); }
+  .stat-card.rejected .num { color: var(--danger); }
+
+  /* Toolbar */
+  .toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  input[type=text], select, input[type=date], textarea {
+    background: var(--surface); border: 1px solid var(--border); color: var(--text);
+    border-radius: 8px; padding: 8px 12px; font-size: 0.9rem; outline: none;
+    transition: border 0.2s;
+  }
+  input[type=text]:focus, select:focus, input[type=date]:focus, textarea:focus { border-color: var(--accent); }
+  .search { flex: 1; min-width: 200px; }
+  select { min-width: 140px; }
+  
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s, transform 0.1s; }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-gmail { background: #fff; color: #333; display: flex; align-items: center; gap: 8px; }
+  .btn-gmail img { width: 18px; height: 18px; }
+  .btn-sm { padding: 5px 10px; font-size: 0.8rem; border-radius: 6px; }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-export { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Table */
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--surface2); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; }
+  td { padding: 12px 14px; border-top: 1px solid var(--border); font-size: 0.88rem; vertical-align: middle; }
+  tr:hover td { background: var(--surface2); }
+  
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+  .badge-applied { background: #1a3a5c; color: var(--blue); }
+  .badge-interview { background: #3d3410; color: var(--warn); }
+  .badge-offer { background: #0d3028; color: var(--green); }
+  .badge-rejected { background: #3d1515; color: var(--danger); }
+
+  .notes-cell { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .reminder-cell { color: var(--warn); font-size: 0.8rem; }
+  .overdue { color: var(--danger) !important; }
+
+  /* Modal */
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; }
+  .modal h2 { font-size: 1.1rem; margin-bottom: 20px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-grid .full { grid-column: 1 / -1; }
+  label { display: block; font-size: 0.78rem; color: var(--muted); margin-bottom: 4px; }
+  input[type=text], select, input[type=date], textarea { width: 100%; }
+  textarea { resize: vertical; min-height: 70px; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Gmail setup */
+  .gmail-setup { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+  .gmail-setup h3 { font-size: 0.95rem; margin-bottom: 8px; display: flex; align-items: center; gap-8px; }
+  .gmail-setup p { font-size: 0.83rem; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+  .setup-row { display: flex; gap: 10px; align-items: center; }
+  .setup-row input { flex: 1; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
+  .status-dot.connected { background: var(--green); }
+  .sync-status { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .source-badge { font-size: 0.7rem; padding: 1px 6px; border-radius: 4px; background: var(--surface2); color: var(--muted); margin-left: 6px; }
+  .source-gmail { background: #2d1f1f; color: #f87171; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>🎯 Job <span>Tracker</span></h1>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span id="gmailUserBadge" style="font-size:0.8rem;color:var(--muted);display:none;"></span>
+      <button class="btn btn-export btn-sm" onclick="exportCSV()">⬇ Export CSV</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal()">+ Add Job</button>
+    </div>
+  </header>
+  <div class="main">
+
+    <!-- Gmail Setup -->
+    <div class="gmail-setup" id="gmailSetup">
+      <h3><span class="status-dot" id="statusDot"></span> Gmail Integration</h3>
+      <p>Connect your Gmail to import job applications from your <strong>"job hunt"</strong> label automatically. Enter your Google OAuth Client ID below (see setup guide).</p>
+      <div class="setup-row">
+        <input type="text" id="clientIdInput" placeholder="Paste your Google OAuth Client ID here..." />
+        <button class="btn btn-gmail btn-sm" onclick="connectGmail()">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="G"> Connect Gmail
+        </button>
+      </div>
+      <div class="sync-status" id="syncStatus">Not connected. <a href="#" onclick="showSetupGuide()" style="color:var(--accent);">How to get a Client ID →</a></div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card applied"><div class="num" id="cntApplied">0</div><div class="lbl">Applied</div></div>
+      <div class="stat-card interview"><div class="num" id="cntInterview">0</div><div class="lbl">Interviews</div></div>
+      <div class="stat-card offer"><div class="num" id="cntOffer">0</div><div class="lbl">Offers</div></div>
+      <div class="stat-card rejected"><div class="num" id="cntRejected">0</div><div class="lbl">Rejected</div></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <input type="text" class="search" id="searchInput" placeholder="🔍 Search company or role..." oninput="renderTable()">
+      <select id="filterStatus" onchange="renderTable()">
+        <option value="">All Statuses</option>
+        <option value="applied">Applied</option>
+        <option value="interview">Interview</option>
+        <option value="offer">Offer</option>
+        <option value="rejected">Rejected</option>
+      </select>
+      <select id="sortBy" onchange="renderTable()">
+        <option value="date_desc">Newest First</option>
+        <option value="date_asc">Oldest First</option>
+        <option value="company">Company A–Z</option>
+      </select>
+    </div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Company</th>
+            <th>Role</th>
+            <th>Applied</th>
+            <th>Status</th>
+            <th>Reminder</th>
+            <th>Contact</th>
+            <th>Notes</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="jobTable"></tbody>
+      </table>
+      <div class="empty" id="emptyMsg" style="display:none;">No jobs found. Add one or sync Gmail!</div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h2 id="modalTitle">Add Job Application</h2>
+    <div class="form-grid">
+      <div>
+        <label>Company *</label>
+        <input type="text" id="fCompany" placeholder="e.g. Google">
+      </div>
+      <div>
+        <label>Role *</label>
+        <input type="text" id="fRole" placeholder="e.g. Product Manager">
+      </div>
+      <div>
+        <label>Application Date</label>
+        <input type="date" id="fDate">
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="fStatus">
+          <option value="applied">Applied</option>
+          <option value="interview">Interview</option>
+          <option value="offer">Offer</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+      <div>
+        <label>Contact Name</label>
+        <input type="text" id="fContact" placeholder="Recruiter name">
+      </div>
+      <div>
+        <label>Contact Email</label>
+        <input type="text" id="fContactEmail" placeholder="recruiter@company.com">
+      </div>
+      <div>
+        <label>Reminder Date</label>
+        <input type="date" id="fReminder">
+      </div>
+      <div>
+        <label>Job URL</label>
+        <input type="text" id="fUrl" placeholder="https://...">
+      </div>
+      <div class="full">
+        <label>Notes</label>
+        <textarea id="fNotes" placeholder="Interview rounds, salary, impressions..."></textarea>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJob()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Setup Guide Modal -->
+<div class="modal-bg" id="guideModal">
+  <div class="modal">
+    <h2>🔑 How to Get a Google OAuth Client ID</h2>
+    <div style="font-size:0.85rem;line-height:1.7;color:var(--muted);">
+      <p style="color:var(--text);margin-bottom:12px;">Follow these steps to enable Gmail access:</p>
+      <ol style="padding-left:18px;display:flex;flex-direction:column;gap:8px;">
+        <li>Go to <a href="https://console.cloud.google.com" target="_blank" style="color:var(--accent);">console.cloud.google.com</a></li>
+        <li>Create a new project (or select an existing one)</li>
+        <li>Go to <strong>APIs & Services → Library</strong> and enable the <strong>Gmail API</strong></li>
+        <li>Go to <strong>APIs & Services → OAuth consent screen</strong><br>Set User Type to <strong>External</strong>, fill in app name & email, save</li>
+        <li>Go to <strong>APIs & Services → Credentials → Create Credentials → OAuth Client ID</strong></li>
+        <li>Application type: <strong>Web application</strong></li>
+        <li>Under <strong>Authorized JavaScript origins</strong>, add the URL where you're running this app</li>
+        <li>Copy the <strong>Client ID</strong> and paste it in the field above</li>
+        <li>Under <strong>Test users</strong> (OAuth consent screen), add your Gmail address</li>
+      </ol>
+      <p style="margin-top:14px;color:var(--warn);">⚠ This app only requests <strong>read-only</strong> access to your Gmail. It never stores or sends your emails anywhere.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="document.getElementById('guideModal').classList.remove('open')">Got it</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let jobs = JSON.parse(localStorage.getItem('jt_jobs') || '[]');
+let editId = null;
+let gapiReady = false;
+let gmailConnected = false;
+
+// ── Persist ──
+const save = () => localStorage.setItem('jt_jobs', JSON.stringify(jobs));
+
+// ── Render ──
+function renderTable() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const st = document.getElementById('filterStatus').value;
+  const sort = document.getElementById('sortBy').value;
+
+  let filtered = jobs.filter(j => {
+    const match = (j.company + j.role).toLowerCase().includes(q);
+    const statusMatch = !st || j.status === st;
+    return match && statusMatch;
+  });
+
+  if (sort === 'date_desc') filtered.sort((a,b) => new Date(b.date||0) - new Date(a.date||0));
+  else if (sort === 'date_asc') filtered.sort((a,b) => new Date(a.date||0) - new Date(b.date||0));
+  else filtered.sort((a,b) => a.company.localeCompare(b.company));
+
+  const tbody = document.getElementById('jobTable');
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  tbody.innerHTML = filtered.map(j => {
+    const rd = j.reminder ? new Date(j.reminder) : null;
+    const overdue = rd && rd < today;
+    const reminderHtml = j.reminder
+      ? `<span class="reminder-cell ${overdue?'overdue':''}">${overdue?'⚠ ':'🔔 '}${j.reminder}</span>`
+      : '<span style="color:var(--border)">—</span>';
+    const src = j.source === 'gmail' ? '<span class="source-badge source-gmail">Gmail</span>' : '';
+    const urlHtml = j.url ? `<a href="${j.url}" target="_blank" style="color:var(--accent);font-size:0.78rem;">🔗</a> ` : '';
+    return `<tr>
+      <td><strong>${esc(j.company)}</strong>${src}</td>
+      <td>${urlHtml}${esc(j.role)}</td>
+      <td>${j.date||'—'}</td>
+      <td><span class="badge badge-${j.status}">${j.status}</span></td>
+      <td>${reminderHtml}</td>
+      <td style="font-size:0.8rem;">${j.contact?esc(j.contact):'—'}<br><span style="color:var(--muted)">${j.contactEmail?esc(j.contactEmail):''}</span></td>
+      <td class="notes-cell" title="${esc(j.notes||'')}">${esc(j.notes||'—')}</td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-secondary btn-sm" onclick="editJob('${j.id}')">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteJob('${j.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('emptyMsg').style.display = filtered.length ? 'none' : 'block';
+  updateStats();
+}
+
+function updateStats() {
+  ['applied','interview','offer','rejected'].forEach(s => {
+    document.getElementById('cnt'+s.charAt(0).toUpperCase()+s.slice(1)).textContent =
+      jobs.filter(j => j.status === s).length;
+  });
+}
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const uid = () => Math.random().toString(36).slice(2,10);
+
+// ── Modal ──
+function openModal(id=null) {
+  editId = id;
+  const j = id ? jobs.find(x=>x.id===id) : {};
+  document.getElementById('modalTitle').textContent = id ? 'Edit Job' : 'Add Job Application';
+  document.getElementById('fCompany').value = j.company||'';
+  document.getElementById('fRole').value = j.role||'';
+  document.getElementById('fDate').value = j.date||new Date().toISOString().slice(0,10);
+  document.getElementById('fStatus').value = j.status||'applied';
+  document.getElementById('fContact').value = j.contact||'';
+  document.getElementById('fContactEmail').value = j.contactEmail||'';
+  document.getElementById('fReminder').value = j.reminder||'';
+  document.getElementById('fUrl').value = j.url||'';
+  document.getElementById('fNotes').value = j.notes||'';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function saveJob() {
+  const company = document.getElementById('fCompany').value.trim();
+  const role = document.getElementById('fRole').value.trim();
+  if (!company || !role) { alert('Company and Role are required.'); return; }
+  const j = {
+    id: editId || uid(),
+    company, role,
+    date: document.getElementById('fDate').value,
+    status: document.getElementById('fStatus').value,
+    contact: document.getElementById('fContact').value.trim(),
+    contactEmail: document.getElementById('fContactEmail').value.trim(),
+    reminder: document.getElementById('fReminder').value,
+    url: document.getElementById('fUrl').value.trim(),
+    notes: document.getElementById('fNotes').value.trim(),
+    source: editId ? (jobs.find(x=>x.id===editId)?.source||'manual') : 'manual'
+  };
+  if (editId) { const i = jobs.findIndex(x=>x.id===editId); jobs[i]=j; }
+  else jobs.unshift(j);
+  save(); closeModal(); renderTable();
+}
+
+function editJob(id) { openModal(id); }
+function deleteJob(id) {
+  if (!confirm('Delete this job?')) return;
+  jobs = jobs.filter(j=>j.id!==id); save(); renderTable();
+}
+
+// ── CSV Export ──
+function exportCSV() {
+  const cols = ['Company','Role','Date','Status','Contact','ContactEmail','Reminder','URL','Notes','Source'];
+  const rows = jobs.map(j => [j.company,j.role,j.date,j.status,j.contact,j.contactEmail,j.reminder,j.url,j.notes,j.source||'manual']
+    .map(v => `"${(v||'').replace(/"/g,'""')}"`).join(','));
+  const csv = [cols.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'job_tracker.csv'; a.click();
+}
+
+// ── Gmail OAuth ──
+function showSetupGuide() { document.getElementById('guideModal').classList.add('open'); }
+
+function connectGmail() {
+  const clientId = document.getElementById('clientIdInput').value.trim();
+  if (!clientId) { alert('Please enter your Google OAuth Client ID first.'); return; }
+  localStorage.setItem('jt_clientId', clientId);
+  loadGapi(clientId);
+}
+
+function loadGapi(clientId) {
+  document.getElementById('syncStatus').textContent = 'Loading Google API...';
+  if (window.gapi) { initGapi(clientId); return; }
+  const s = document.createElement('script');
+  s.src = 'https://apis.google.com/js/api.js';
+  s.onload = () => initGapi(clientId);
+  s.onerror = () => { document.getElementById('syncStatus').textContent = 'Failed to load Google API. Check your connection.'; };
+  document.head.appendChild(s);
+}
+
+function initGapi(clientId) {
+  gapi.load('client:auth2', async () => {
+    try {
+      await gapi.client.init({
+        clientId,
+        scope: 'https://www.googleapis.com/auth/gmail.readonly',
+        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest']
+      });
+      const auth = gapi.auth2.getAuthInstance();
+      if (auth.isSignedIn.get()) {
+        onGmailConnected(auth.currentUser.get());
+      } else {
+        document.getElementById('syncStatus').textContent = 'Waiting for sign-in...';
+        const user = await auth.signIn();
+        onGmailConnected(user);
+      }
+    } catch(e) {
+      document.getElementById('syncStatus').textContent = 'Error: ' + (e.error || e.message || JSON.stringify(e));
+    }
+  });
+}
+
+function onGmailConnected(user) {
+  gmailConnected = true;
+  const email = user.getBasicProfile().getEmail();
+  document.getElementById('statusDot').classList.add('connected');
+  document.getElementById('gmailUserBadge').textContent = '✓ ' + email;
+  document.getElementById('gmailUserBadge').style.display = 'inline';
+  document.getElementById('syncStatus').innerHTML = `Connected as <strong>${email}</strong>. <a href="#" onclick="syncGmail()" style="color:var(--accent);">🔄 Sync Now →</a>`;
+  syncGmail();
+}
+
+async function syncGmail() {
+  document.getElementById('syncStatus').innerHTML = '⏳ Scanning "job hunt" label...';
+  try {
+    // Find label ID
+    const labelsRes = await gapi.client.gmail.users.labels.list({ userId: 'me' });
+    const labels = labelsRes.result.labels || [];
+    const label = labels.find(l => l.name.toLowerCase().replace(/[\s_-]/g,'') === 'jobhunt' ||
+                                    l.name.toLowerCase() === 'job hunt' ||
+                                    l.name.toLowerCase() === 'job-hunt');
+    if (!label) {
+      document.getElementById('syncStatus').innerHTML = '⚠ Label "job hunt" not found. Make sure it exists in Gmail. <a href="#" onclick="syncGmail()" style="color:var(--accent);">Retry</a>';
+      return;
+    }
+
+    // Fetch emails from that label
+    const msgsRes = await gapi.client.gmail.users.messages.list({
+      userId: 'me', labelIds: [label.id], maxResults: 200
+    });
+    const msgs = msgsRes.result.messages || [];
+    document.getElementById('syncStatus').innerHTML = `⏳ Reading ${msgs.length} emails...`;
+
+    let added = 0, updated = 0;
+    for (const msg of msgs) {
+      const full = await gapi.client.gmail.users.messages.get({ userId: 'me', id: msg.id, format: 'metadata', metadataHeaders: ['Subject','From','Date'] });
+      const headers = full.result.payload.headers;
+      const subject = headers.find(h=>h.name==='Subject')?.value || '';
+      const from = headers.find(h=>h.name==='From')?.value || '';
+      const dateStr = headers.find(h=>h.name==='Date')?.value || '';
+      const date = dateStr ? new Date(dateStr).toISOString().slice(0,10) : '';
+
+      const parsed = parseJobEmail(subject, from);
+      if (!parsed) continue;
+
+      // Check if already exists
+      const existing = jobs.find(j => j.gmailId === msg.id);
+      if (existing) {
+        // Update status if rejection detected
+        if (parsed.status === 'rejected' && existing.status === 'applied') {
+          existing.status = 'rejected'; updated++;
+        }
+        continue;
+      }
+
+      jobs.unshift({
+        id: uid(), gmailId: msg.id,
+        company: parsed.company, role: parsed.role,
+        date, status: parsed.status,
+        contact: parsed.contact, contactEmail: parsed.contactEmail,
+        notes: `Imported from Gmail: ${subject}`,
+        source: 'gmail', reminder: '', url: ''
+      });
+      added++;
+    }
+
+    save(); renderTable();
+    document.getElementById('syncStatus').innerHTML = `✅ Sync complete — ${added} added, ${updated} updated. <a href="#" onclick="syncGmail()" style="color:var(--accent);">🔄 Sync again</a>`;
+  } catch(e) {
+    document.getElementById('syncStatus').innerHTML = 'Sync error: ' + (e.result?.error?.message || e.message || 'Unknown error');
+  }
+}
+
+function parseJobEmail(subject, from) {
+  const s = subject.toLowerCase();
+  const rejectionWords = ['unfortunately','regret','not moving forward','not selected','decided to move','other candidates','not a fit','no longer','declined','unsuccessful'];
+  const applicationWords = ['application received','thank you for applying','thanks for applying','we received your application','application for','applied for','your application to','confirmation'];
+  const interviewWords = ['interview','schedule a call','schedule time','speak with you','invite you to interview'];
+
+  // Detect status
+  let status = null;
+  if (rejectionWords.some(w => s.includes(w))) status = 'rejected';
+  else if (interviewWords.some(w => s.includes(w))) status = 'interview';
+  else if (applicationWords.some(w => s.includes(w))) status = 'applied';
+  else return null;
+
+  // Extract company from From field
+  let company = '';
+  const fromMatch = from.match(/^([^<]+)</);
+  if (fromMatch) {
+    company = fromMatch[1].trim().replace(/careers?|hiring|recruiting|noreply|no-reply|talent/gi,'').replace(/[@._-]/g,' ').trim();
+  }
+  if (!company) {
+    const domainMatch = from.match(/@([^.>]+)/);
+    if (domainMatch) company = domainMatch[1].charAt(0).toUpperCase() + domainMatch[1].slice(1);
+  }
+
+  // Extract role from subject
+  let role = '';
+  const rolePatterns = [
+    /application (?:for|to) (?:the )?(.+?)(?:\s*[-–|]|$)/i,
+    /(?:position|role|job)(?:\s*[:–-])?\s*(.+?)(?:\s*[-–|]|$)/i,
+    /re:\s*(.+?)(?:\s*[-–|at])/i
+  ];
+  for (const p of rolePatterns) {
+    const m = subject.match(p);
+    if (m && m[1].length < 60) { role = m[1].trim(); break; }
+  }
+  if (!role) role = subject.slice(0,50);
+
+  // Contact email from From
+  const emailMatch = from.match(/<(.+?)>/);
+  const contactEmail = emailMatch ? emailMatch[1] : '';
+
+  return { company: company||'Unknown', role: role||'Unknown', status, contact: '', contactEmail };
+}
+
+// ── Init ──
+const savedClientId = localStorage.getItem('jt_clientId');
+if (savedClientId) {
+  document.getElementById('clientIdInput').value = savedClientId;
+  loadGapi(savedClientId);
+}
+renderTable();
+</script>
+</body>
+</html>
